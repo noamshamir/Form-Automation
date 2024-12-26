@@ -10,18 +10,13 @@ import traceback
 import pandas as pd
 from typing import List
 
-# Add parent directory to Python path for form_automator import
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-sys.path.append(parent_dir)
-
 try:
     from form_automator import process_forms_for_both, get_names_from_excel
     print("Successfully imported form_automator")
 except Exception as e:
     print(f"Error importing form_automator: {str(e)}")
-    print(f"Looking in: {parent_dir}")
-    print(f"Files in directory: {os.listdir(parent_dir)}")
+    print(f"Current directory: {os.getcwd()}")
+    print(f"Files in directory: {os.listdir('.')}")
     raise
 
 app = FastAPI()
