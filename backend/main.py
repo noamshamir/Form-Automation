@@ -31,7 +31,7 @@ app.add_middleware(
 )
 
 # Use your existing directories
-IN_DIR = Path("../in")
+IN_DIR = Path("../in/templates")
 OUT_DIR = Path("../out")
 IN_DIR.mkdir(parents=True, exist_ok=True)
 OUT_DIR.mkdir(parents=True, exist_ok=True)
