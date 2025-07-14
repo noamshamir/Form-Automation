@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { FileUploader } from "./components/FileUploader.tsx";
 import { UploadedFiles } from "./components/UploadedFiles.tsx";
 import { PeopleSelector } from "./components/PeopleSelector.tsx";
 import { GeneratedFiles } from "./components/GeneratedFiles.tsx";
 import { useProcessFiles } from "./hooks/useProcessFiles.ts";
 import { UploadedFile, Person } from "./types.ts";
+import { getHeaders } from "./backend/main";
 import "./App.css";
 
 const App: React.FC = () => {
@@ -14,9 +15,16 @@ const App: React.FC = () => {
         defendant?: Person;
         attorney?: Person;
     }>({});
+    const [headers, setHeaders] = useState<string[]>([]);
 
-    const { isProcessing, error, generatedFiles, processFiles, setError } =
-        useProcessFiles();
+    const {
+        isProcessing,
+        error,
+        generatedFiles,
+        processFiles,
+        onDownloadAll, // ← grab the helper
+        setError,
+    } = useProcessFiles();
 
     const handleFileUpload = useCallback((files: File[]) => {
         const newFiles: UploadedFile[] = files.map((file) => ({
@@ -64,32 +72,21 @@ const App: React.FC = () => {
         );
     }, [uploadedFiles, selectedPeople, processFiles, setError]);
 
-    const handleDownloadAll = useCallback(async () => {
-        for (const file of generatedFiles) {
-            const link = document.createElement("a");
-            try {
-                const response = await fetch(file.url);
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                link.href = url;
-                link.download = file.name;
-                document.body.appendChild(link);
-                link.click();
-                window.URL.revokeObjectURL(url);
-            } catch (error) {
-                console.error(`Error downloading ${file.name}:`, error);
-            } finally {
-                document.body.removeChild(link);
-                await new Promise((resolve) => setTimeout(resolve, 500));
-            }
-        }
-    }, [generatedFiles]);
-
     const isFormComplete =
         uploadedFiles.length > 0 &&
         selectedPeople.plaintiff &&
         selectedPeople.defendant &&
         selectedPeople.attorney;
+
+    useEffect(() => {
+        if (!uploadedFiles.length) {
+            setHeaders([]);
+            return;
+        }
+        getHeaders(uploadedFiles.map((f) => f.file))
+            .then((hdrs) => setHeaders(hdrs))
+            .catch((err) => console.error("Error reading headers:", err));
+    }, [uploadedFiles]);
 
     return (
         <div className='App'>
@@ -129,7 +126,7 @@ const App: React.FC = () => {
                             <h2>Files</h2>
                             {generatedFiles.length > 0 && (
                                 <button
-                                    onClick={handleDownloadAll}
+                                    onClick={onDownloadAll}
                                     className='download-all-button'
                                 >
                                     Download All
@@ -138,7 +135,7 @@ const App: React.FC = () => {
                         </div>
                         <GeneratedFiles
                             files={generatedFiles}
-                            onDownloadAll={handleDownloadAll}
+                            onDownloadAll={onDownloadAll}
                         />
                     </section>
                 </div>

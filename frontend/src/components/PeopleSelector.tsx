@@ -1,5 +1,7 @@
-import React, { useState, useCallback, useEffect, useMemo } from "react";
-import { Person, NamesResponse } from "../types";
+// src/components/PeopleSelector.tsx
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { Person } from "../types";
+import { getNames } from "../backend/main"; // adjust path as needed
 import "./PeopleSelector.css";
 
 interface PeopleSelectorProps {
@@ -27,147 +29,110 @@ export const PeopleSelector: React.FC<PeopleSelectorProps> = ({
     const [names, setNames] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [isFocused, setIsFocused] = useState(false);
 
+    // Fetch names when files change, using in-browser backend
+    // Fetch names when files change, using in-browser backend
     useEffect(() => {
-        const fetchNames = async () => {
-            if (!excelFiles?.length) return;
+        if (!excelFiles?.length) {
+            setNames([]);
+            return;
+        }
 
+        const loadNames = async () => {
             setLoading(true);
             setError(null);
 
             try {
-                const formData = new FormData();
-                excelFiles.forEach((file) => {
-                    formData.append("excel_files", file);
-                });
-
-                const response = await fetch(
-                    "http://localhost:3000/api/names",
-                    {
-                        method: "POST",
-                        body: formData,
-                    }
-                );
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data: NamesResponse = await response.json();
-                setNames(data.names);
-            } catch (err) {
-                setError(
-                    err instanceof Error ? err.message : "Failed to fetch names"
-                );
+                const fetchedNames = await getNames(excelFiles);
+                setNames(fetchedNames);
+            } catch (err: any) {
                 console.error("Error fetching names:", err);
+                setError(err?.message || "Failed to fetch names");
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchNames();
+        loadNames();
     }, [excelFiles]);
 
+    // Filter names by searchTerm (prefix/contains)
     const filteredNames = useMemo(() => {
-        console.log("Filtering names:", {
-            searchTerm,
-            names,
-            filtered: names.filter((name) =>
-                name.toLowerCase().includes(searchTerm.toLowerCase())
-            ),
-        });
-
-        return names.filter((name) =>
-            name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        const term = searchTerm.toLowerCase().trim();
+        return names.filter((name) => name.toLowerCase().includes(term));
     }, [names, searchTerm]);
 
-    const handleSelect = (name: string) => {
-        const person: Person = {
-            id: name, // Using name as ID for now
-            name: name,
-            type: activeTab,
-        };
-        onSelect(activeTab, person);
-        setSearchTerm("");
-    };
-
-    useEffect(() => {
-        console.log("Search term changed:", searchTerm);
-        console.log("Available names:", names);
-        console.log("Filtered names:", filteredNames);
-    }, [searchTerm, names, filteredNames]);
+    const handleSelect = useCallback(
+        (name: string) => {
+            const person: Person = { id: name, name, type: activeTab };
+            onSelect(activeTab, person);
+            setSearchTerm("");
+        },
+        [activeTab, onSelect]
+    );
 
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        console.log("Search input changed:", value);
-        setSearchTerm(value.trim()); // Trim whitespace
+        setSearchTerm(e.target.value);
     };
 
     return (
         <div className='people-selector'>
             <div className='tabs'>
-                <button
-                    className={`tab ${
-                        activeTab === "plaintiff" ? "active" : ""
-                    }`}
-                    onClick={() => setActiveTab("plaintiff")}
-                >
-                    {selected.plaintiff && <span className='selection-dot' />}
-                    {selected.plaintiff ? selected.plaintiff.name : "Plaintiff"}
-                </button>
-                <button
-                    className={`tab ${
-                        activeTab === "defendant" ? "active" : ""
-                    }`}
-                    onClick={() => setActiveTab("defendant")}
-                >
-                    {selected.defendant && <span className='selection-dot' />}
-                    {selected.defendant ? selected.defendant.name : "Defendant"}
-                </button>
-                <button
-                    className={`tab ${
-                        activeTab === "attorney" ? "active" : ""
-                    }`}
-                    onClick={() => setActiveTab("attorney")}
-                >
-                    {selected.attorney && <span className='selection-dot' />}
-                    {selected.attorney ? selected.attorney.name : "Attorney"}
-                </button>
+                {(["plaintiff", "defendant", "attorney"] as const).map(
+                    (tab) => (
+                        <button
+                            key={tab}
+                            className={`tab ${
+                                activeTab === tab ? "active" : ""
+                            }`}
+                            onClick={() => setActiveTab(tab)}
+                        >
+                            {selected[tab] && (
+                                <span className='selection-dot' />
+                            )}
+                            {selected[tab]?.name ||
+                                tab.charAt(0).toUpperCase() + tab.slice(1)}
+                        </button>
+                    )
+                )}
             </div>
+
             <div className='search-container'>
                 <input
                     type='text'
                     value={searchTerm}
                     onChange={handleSearchChange}
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => setTimeout(() => setIsFocused(false), 200)}
                     placeholder={`${
                         selected[activeTab] ? "Change" : "Search for"
                     } ${activeTab}...`}
                     className='search-input'
                     disabled={loading || !!error}
                 />
+
                 {loading && <div className='loading'>Loading names...</div>}
                 {error && <div className='error'>{error}</div>}
-                {isFocused && !loading && !error && (
+
+                {!loading && !error && (
                     <div className='search-results'>
-                        {filteredNames.length > 0 ? (
-                            filteredNames.map((name) => (
-                                <button
-                                    key={name}
-                                    className='search-result-item'
-                                    onClick={() => handleSelect(name)}
-                                >
-                                    {name}
-                                </button>
-                            ))
+                        {searchTerm ? (
+                            filteredNames.length > 0 ? (
+                                filteredNames.map((name) => (
+                                    <button
+                                        key={name}
+                                        className='search-result-item'
+                                        onClick={() => handleSelect(name)}
+                                    >
+                                        {name}
+                                    </button>
+                                ))
+                            ) : (
+                                <div className='no-results'>
+                                    No matches found
+                                </div>
+                            )
                         ) : (
                             <div className='no-results'>
-                                {searchTerm
-                                    ? "No matches found"
-                                    : "Start typing to filter..."}
+                                Start typing to filter...
                             </div>
                         )}
                     </div>
