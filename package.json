@@ -3,5 +3,8 @@
     "@headlessui/react": "^2.2.0",
     "pdf-lib": "^1.17.1",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0"
   }
 }
